@@ -1,0 +1,154 @@
+#!/bin/bash
+
+cat << "EOF"
+
+
+    /$$$$$$                                                      /$$                      /$$$$$$$$      /$$          /$$         
+   /$$__  $$                                                    | $$                     |__  $$__/     |__/         |__/         
+  | $$  \__/ /$$$$$$  /$$$$$$  /$$$$$$  /$$$$$$ /$$$$$$  /$$$$$$| $$$$$$$ /$$   /$$         | $$ /$$$$$$ /$$/$$    /$$/$$ /$$$$$$ 
+  | $$ /$$$$/$$__  $$/$$__  $$/$$__  $$/$$__  $|____  $$/$$__  $| $$__  $| $$  | $$         | $$/$$__  $| $|  $$  /$$| $$|____  $$
+  | $$|_  $| $$$$$$$| $$  \ $| $$  \ $| $$  \__//$$$$$$| $$  \ $| $$  \ $| $$  | $$         | $| $$  \__| $$\  $$/$$/| $$ /$$$$$$$
+  | $$  \ $| $$_____| $$  | $| $$  | $| $$     /$$__  $| $$  | $| $$  | $| $$  | $$         | $| $$     | $$ \  $$$/ | $$/$$__  $$
+  |  $$$$$$|  $$$$$$|  $$$$$$|  $$$$$$| $$    |  $$$$$$| $$$$$$$| $$  | $|  $$$$$$$         | $| $$     | $$  \  $/  | $|  $$$$$$$
+   \______/ \_______/\______/ \____  $|__/     \_______| $$____/|__/  |__/\____  $$         |__|__/     |__/   \_/   |__/\_______/
+                              /$$  \ $$                | $$               /$$  | $$                                               
+                             |  $$$$$$/                | $$              |  $$$$$$/                                               
+                              \______/                 |__/               \______/                                                
+
+
+EOF
+
+
+# print-then-wait function
+printwait() {
+    delay="$1"
+    shift
+    echo -e "$@"
+    sleep "$delay"
+}
+
+# letter printing function
+letterprint() {
+    i=0
+    while [ $i -lt ${#1} ]; do
+        letter="${1:$i:1}"
+        if [ "$letter" = "|" ]; then
+            echo
+        else
+            echo -n "$letter"
+        fi
+        sleep "${2:-0.08s}"
+        ((i++))
+    done
+}
+
+
+for line in \
+    "Welcome to Geography Trivia, a game to test your worldliness!" \
+    "Here's how it works:\n" \
+    "* You will be presented a question and alotted 6 seconds to read the quesion." \
+    "* All questions will be either [t]rue or [f]alse. Select the appropriate letter for the answer." \
+    "* After reading the question, you will have 10 seconds to choose the correct answer.";
+do
+    printwait 2s "$line"
+done
+
+printwait 3s "\nReady, player?"
+echo
+
+
+declare -i score
+score=0
+declare -i question
+question=1
+
+
+# Administer questions (questions at the end of the while loop)
+while read -r questionline; do
+    
+    # Parse answer line
+    read -r answerline
+    answer="${answerline%%|*}"  # ${var%%pat} means "remove largest suffix"
+    wrong="${answerline##*|}"   # ${var##pat} means "remove largest prefix"
+    correct="${answerline#*|}"  # ${var#pat} means "remove smallest prefix"
+    correct="${correct%%|*}"
+    
+    # Print question
+    echo
+    letterprint "$questionline"
+    echo " [T/f]?"
+    
+    # Redirect stdin to file descriptor 3
+    exec 3<&1
+    
+    # Timeout, wait for answer
+    timeout=10
+    while [ $timeout -ge 0 ]; do
+        echo -ne "\r[TIME $timeout] "
+        if read -n1 -t1 -r -s input <&3; then
+            [ -z "$timeout" ] && continue # no key pressed
+            case "$input" in
+                t|T|y|Y) ans=T; echo true; printwait 1s ;;
+                f|F|n|N) ans=F; echo false; printwait 1s ;;
+                *) ((timeout--)); continue ;;
+            esac
+            if [ "$ans" = "$answer" ]; then
+                echo "$correct"
+                ((score++))
+                break
+            else
+                echo "$wrong"
+                break
+            fi
+        fi
+        ((timeout--))
+    done
+    
+    if [ $timeout -lt 0 ]; then
+        echo -e "Time's up! Better luck next time.\n"
+    fi
+    
+    ((question++))
+    
+# Questions are formatted:
+#   QUESTION
+#   T/F|CORRECT|WRONG
+# Use | in the question to add a newline
+done <<EOF
+Pennsylvania is the only American state to begin with the letter "p"
+T|Great Job!|Wrong!
+Johannesburg is one of South Africa's three capitals.
+F|That is correct!|Nope! The capitals are actually Pretoria, Cape Town, and Bloemfontein.
+Memphis is the state capital of Tennessee.
+F|You are correct!|NO! The capital is Nashville.
+Seattle is more northernly than New York City.
+T|Great Job!|Nope!
+There are 50 states in the contiguous United States.
+F|That's correct! Nice work.|That's incorrect!
+The Indian Ocean is the third largest ocean in the world.
+T|whohoo you got it.|:( :( :( - incorrect
+The Mississippi River is the longest river in the world.
+F|:) :) :) - correct.|That's incorrect! :(
+The three countries with the largest land area in the world are Russia, Canada, and the United States.
+F|correct answer ^_^|Incorrect Answer
+The Tropic of Cancer is a meridian.
+F|That's correct! Nice work.|:( :( :( - incorrect.
+Okay, last question.|Uruguay has a greater population than Paraguay ?'
+F|Great Job! ^_^|Nope. This is incorrect.
+EOF
+
+
+# Conclusion
+
+echo; echo
+printwait 2s
+
+letterprint "Thanks for playing! I hope you had fun and maybe learned a thing or two." 0.06s
+printwait 2s
+
+letterprint "Your final score is: $score" 0.06s
+printwait 2s
+
+letterprint "Take care, this is GAME OVER!" 0.06s
+printwait 2s
+
